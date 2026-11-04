@@ -1,6 +1,44 @@
 import { META_ACCESS_TOKEN, META_GRAPH_VERSION } from './config';
 import type { AccountDataset, AdAccount, BreakdownRow, DashboardResponse, InsightRow } from './types';
 
+const DASHBOARD_CACHE_PREFIX = 'meta-dashboard-cache:v1:';
+export const DASHBOARD_CACHE_TTL_MS = 10 * 60_000;
+type DashboardRequest = { accountIds: string[]; since: string; until: string; previousSince: string; previousUntil: string };
+
+function dashboardCacheKey(input: DashboardRequest) {
+  const accounts = input.accountIds.map(id => id.replace(/^act_/i, '')).sort();
+  return `${DASHBOARD_CACHE_PREFIX}${accounts.join(',')}:${input.since}:${input.until}:${input.previousSince}:${input.previousUntil}`;
+}
+
+export function readDashboardCache(input: DashboardRequest): { response: DashboardResponse; fresh: boolean } | null {
+  try {
+    const stored = localStorage.getItem(dashboardCacheKey(input));
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as { storedAt: number; response: DashboardResponse };
+    if (!parsed?.response?.data || !Number.isFinite(parsed.storedAt)) return null;
+    return { response: parsed.response, fresh: Date.now() - parsed.storedAt < DASHBOARD_CACHE_TTL_MS };
+  } catch {
+    return null;
+  }
+}
+
+function writeDashboardCache(input: DashboardRequest, response: DashboardResponse) {
+  try {
+    const key = dashboardCacheKey(input);
+    localStorage.setItem(key, JSON.stringify({ storedAt: Date.now(), response }));
+    const entries = Object.keys(localStorage)
+      .filter(item => item.startsWith(DASHBOARD_CACHE_PREFIX))
+      .map(item => {
+        try { return { key: item, storedAt: Number(JSON.parse(localStorage.getItem(item) || '{}').storedAt) || 0 }; }
+        catch { return { key: item, storedAt: 0 }; }
+      })
+      .sort((a, b) => b.storedAt - a.storedAt);
+    entries.slice(12).forEach(item => localStorage.removeItem(item.key));
+  } catch {
+    // A full browser storage quota must not prevent the dashboard from loading.
+  }
+}
+
 export function hasMetaToken() {
   return META_ACCESS_TOKEN.trim().length > 20 && !META_ACCESS_TOKEN.toLowerCase().includes('cole_seu_token');
 }
@@ -50,36 +88,104 @@ function numeric(value: unknown) {
 }
 
 function actionTotals(actions: any[] = []) {
-  const sum = (types: string[]) => actions.reduce((total, item) => types.includes(item.action_type) ? total + numeric(item.value) : total, 0);
+  const firstValue = (types: string[]) => {
+    for (const type of types) {
+      const found = actions.find(item => item.action_type === type && numeric(item.value) > 0);
+      if (found) return numeric(found.value);
+    }
+    return 0;
+  };
   const breakdown: Record<string, number> = {};
   actions.forEach(item => {
     const key = String(item.action_type || '');
     if (key) breakdown[key] = (breakdown[key] || 0) + numeric(item.value);
   });
-  const leadTypes = ['lead', 'leadgen_grouped', 'leadgen.other', 'onsite_conversion.lead_grouped'];
-  const conversationTypes = ['onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.messaging_conversation_started'];
+  const leadTypes = ['onsite_conversion.lead_grouped', 'leadgen_grouped', 'lead', 'leadgen.other', 'offsite_conversion.fb_pixel_lead', 'offsite_conversion.lead'];
+  const conversationTypes = ['onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.messaging_conversation_started', 'messaging_conversation_started_7d', 'messaging_conversation_started'];
   const profileTypes = ['instagram_profile_visit', 'instagram_profile_visits', 'onsite_conversion.instagram_profile_visit', 'onsite_conversion.instagram_profile_visits'];
   return {
-    leads: sum(leadTypes), conversations: sum(conversationTypes), linkClicks: sum(['link_click']),
-    profileVisits: sum(profileTypes), landingPageViews: sum(['landing_page_view']), breakdown,
+    leads: firstValue(leadTypes), conversations: firstValue(conversationTypes), linkClicks: firstValue(['link_click']),
+    profileVisits: firstValue(profileTypes), landingPageViews: firstValue(['landing_page_view']),
+    postEngagement: firstValue(['post_engagement', 'page_engagement']),
+    purchases: firstValue(['purchase', 'omni_purchase']),
+    appInstalls: firstValue(['mobile_app_install', 'app_install']),
+    videoViews: firstValue(['video_view', 'thruplay']),
+    eventResponses: firstValue(['event_response', 'rsvp']),
+    pageLikes: firstValue(['page_like', 'like', 'page_like_add']), breakdown,
   };
 }
 
 const isLeadObjective = (objective?: string | null) => ['OUTCOME_LEADS', 'LEAD_GENERATION'].includes(String(objective || '').toUpperCase());
 
+function resultFor(actions: ReturnType<typeof actionTotals>, objective: string | null, optimizationGoal: string | null) {
+  const goal = String(optimizationGoal || '').toUpperCase();
+  const campaignObjective = String(objective || '').toUpperCase();
+  const pick = (value: number, label: string) => ({ value, label });
+
+  if (goal.includes('LEAD')) return pick(actions.leads, 'Leads');
+  if (goal.includes('CONVERSATION') || goal.includes('MESSAGING')) return pick(actions.conversations, 'Conversas');
+  if (goal.includes('PROFILE_VISIT')) return pick(actions.profileVisits, 'Visitas ao perfil');
+  if (goal.includes('LANDING_PAGE_VIEW')) return pick(actions.landingPageViews, 'Visitas à página');
+  if (goal.includes('LINK_CLICK')) return pick(actions.linkClicks, 'Cliques no link');
+  if (goal.includes('ENGAGED_PAGE_VIEW')) return pick(actions.landingPageViews, 'Visitas à página');
+  if (goal.includes('EVENT_RESPONSE')) return pick(actions.eventResponses, 'Respostas a eventos');
+  if (goal.includes('PAGE_LIKE')) return pick(actions.pageLikes, 'Curtidas na página');
+  if (goal.includes('POST_ENGAGEMENT') || goal.includes('PAGE_ENGAGEMENT') || goal.includes('ENGAGED_USER')) return pick(actions.postEngagement, 'Engajamentos');
+  if (goal.includes('APP_INSTALL')) return pick(actions.appInstalls, 'Instalações');
+  if (goal.includes('OFFSITE_CONVERSION') || goal.includes('PURCHASE') || goal.includes('VALUE')) {
+    if (actions.purchases) return pick(actions.purchases, 'Compras');
+    if (actions.leads) return pick(actions.leads, 'Leads');
+    return pick(0, 'Conversões');
+  }
+  if (goal.includes('AD_RECALL')) return pick(actions.videoViews, 'Visualizações de vídeo');
+  if (goal.includes('REACH')) return pick(0, 'Alcance');
+  if (goal.includes('IMPRESSION')) return pick(0, 'Impressões');
+
+  if (isLeadObjective(campaignObjective)) return pick(actions.leads, 'Leads');
+  if (campaignObjective === 'OUTCOME_ENGAGEMENT') {
+    if (actions.conversations) return pick(actions.conversations, 'Conversas');
+    if (actions.postEngagement) return pick(actions.postEngagement, 'Engajamentos');
+    if (actions.profileVisits) return pick(actions.profileVisits, 'Visitas ao perfil');
+    return pick(0, 'Engajamentos');
+  }
+  if (campaignObjective === 'OUTCOME_TRAFFIC') {
+    if (actions.landingPageViews) return pick(actions.landingPageViews, 'Visitas à página');
+    if (actions.profileVisits) return pick(actions.profileVisits, 'Visitas ao perfil');
+    return pick(actions.linkClicks, 'Cliques no link');
+  }
+  if (campaignObjective === 'OUTCOME_SALES') {
+    if (actions.purchases) return pick(actions.purchases, 'Compras');
+    if (actions.leads) return pick(actions.leads, 'Leads');
+    return pick(0, 'Conversões');
+  }
+  if (campaignObjective === 'OUTCOME_AWARENESS') return pick(actions.videoViews, 'Visualizações de vídeo');
+  if (actions.leads) return pick(actions.leads, 'Leads');
+  if (actions.conversations) return pick(actions.conversations, 'Conversas');
+  if (actions.landingPageViews) return pick(actions.landingPageViews, 'Visitas à página');
+  if (actions.profileVisits) return pick(actions.profileVisits, 'Visitas ao perfil');
+  if (actions.linkClicks) return pick(actions.linkClicks, 'Cliques no link');
+  if (actions.purchases) return pick(actions.purchases, 'Compras');
+  if (actions.postEngagement) return pick(actions.postEngagement, 'Engajamentos');
+  return pick(0, 'Resultados');
+}
+
 function normalizeRow(row: any, account: AdAccount, objectives: Record<string, string | null>): InsightRow {
   const actions = actionTotals(row.actions || []);
+  actions.linkClicks ||= numeric(row.inline_link_clicks);
   const objective = objectives[String(row.campaign_id || '')] || null;
+  const optimizationGoal = row.optimization_goal || null;
+  const result = resultFor(actions, objective, optimizationGoal);
   return {
     date_start: row.date_start || null, date_stop: row.date_stop || null,
     campaign_id: row.campaign_id || null, campaign_name: row.campaign_name || null,
     adset_id: row.adset_id || null, adset_name: row.adset_name || null,
     ad_id: row.ad_id || null, ad_name: row.ad_name || null,
-    campaign_objective: objective, is_lead_campaign: isLeadObjective(objective),
+    campaign_objective: objective, optimization_goal: optimizationGoal, is_lead_campaign: isLeadObjective(objective),
     impressions: numeric(row.impressions), reach: numeric(row.reach), spend: numeric(row.spend),
     clicks: numeric(row.clicks), link_clicks: actions.linkClicks, leads: actions.leads, results_form: actions.leads,
     conversations: actions.conversations, results_messaging: actions.conversations,
     profile_visits: actions.profileVisits, landing_page_views: actions.landingPageViews,
+    results: result.value, result_label: result.label,
     action_breakdown: actions.breakdown, ad_account_id: account.id,
     account_name: account.name || account.account_id || account.id, currency: account.currency || 'BRL',
   };
@@ -93,6 +199,7 @@ async function fetchInsights(account: AdAccount, since: string, until: string, l
     ...(level === 'adset' || level === 'ad' ? ['adset_id', 'adset_name'] : []),
     ...(level === 'ad' ? ['ad_id', 'ad_name'] : []),
     'impressions', 'reach', 'spend', 'clicks', 'inline_link_clicks', 'actions',
+    ...(level === 'account' ? [] : ['optimization_goal']),
   ].join(',');
   return graphPages(`${accountId}/insights`, {
     fields, level, time_range: JSON.stringify({ since, until }),
@@ -139,6 +246,7 @@ async function fetchAccountDataset(account: AdAccount, since: string, until: str
       ad_account_id: account.id, is_lead_campaign: isLeadObjective(objective),
       spend: numeric(row.spend), impressions: numeric(row.impressions), clicks: numeric(row.clicks),
       leads: action.leads, conversations: action.conversations,
+      results: resultFor({ ...action, linkClicks: action.linkClicks || numeric(row.inline_link_clicks) }, objective, row.optimization_goal || null).value,
     };
   });
   return {
@@ -158,5 +266,7 @@ export async function loadDashboard(input: { accounts: AdAccount[]; accountIds: 
   }));
   const data = results.filter((result): result is Extract<typeof result, { ok: true }> => result.ok).map(result => result.data);
   const errors = results.filter((result): result is Extract<typeof result, { ok: false }> => !result.ok).map(({ account, error }) => ({ account, error }));
-  return { data, errors, fetchedAt: new Date().toISOString(), partial: errors.length > 0 };
+  const response = { data, errors, fetchedAt: new Date().toISOString(), partial: errors.length > 0 };
+  if (data.length > 0 && errors.length === 0) writeDashboardCache(input, response);
+  return response;
 }

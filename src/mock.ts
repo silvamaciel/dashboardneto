@@ -1,23 +1,31 @@
 import type { AccountDataset, BreakdownRow, DashboardResponse, InsightRow } from './types';
 
 const campaigns = [
-  { id: 'c101', name: 'Captação · Imóveis de alto padrão', objective: 'OUTCOME_LEADS', adset: 'Público semelhante · 1%' },
-  { id: 'c102', name: 'Leads · Lançamento Jardim Europa', objective: 'OUTCOME_LEADS', adset: 'Interesse em imóveis' },
-  { id: 'c103', name: 'WhatsApp · Plantão de vendas', objective: 'OUTCOME_ENGAGEMENT', adset: 'Remarketing 30 dias' },
-  { id: 'c104', name: 'Marca · Novos empreendimentos', objective: 'OUTCOME_TRAFFIC', adset: 'São Paulo · 25–55' },
+  { id: 'c101', name: 'Captação · Imóveis de alto padrão', objective: 'OUTCOME_LEADS', optimization_goal: 'LEAD_GENERATION', adset: 'Público semelhante · 1%' },
+  { id: 'c102', name: 'Leads · Lançamento Jardim Europa', objective: 'OUTCOME_LEADS', optimization_goal: 'LEAD_GENERATION', adset: 'Interesse em imóveis' },
+  { id: 'c103', name: 'WhatsApp · Plantão de vendas', objective: 'OUTCOME_ENGAGEMENT', optimization_goal: 'CONVERSATIONS', adset: 'Remarketing 30 dias' },
+  { id: 'c104', name: 'Marca · Novos empreendimentos', objective: 'OUTCOME_TRAFFIC', optimization_goal: 'LANDING_PAGE_VIEWS', adset: 'São Paulo · 25–55' },
 ];
 const accountId = 'act_1029384756';
 const accountName = 'Conta de anúncios principal';
 const currency = 'BRL';
 
 function row(campaign: typeof campaigns[number], date: string | null, spend: number, leads: number, conversations: number, clicks: number, impressions: number, reach: number): InsightRow {
+  const profileVisits = Math.round(clicks * 0.11);
+  const landingPageViews = Math.round(clicks * 0.46);
+  const results = campaign.optimization_goal === 'LEAD_GENERATION' ? leads
+    : campaign.optimization_goal === 'CONVERSATIONS' ? conversations
+      : campaign.optimization_goal === 'LANDING_PAGE_VIEWS' ? landingPageViews : 0;
+  const resultLabel = campaign.optimization_goal === 'LEAD_GENERATION' ? 'Leads'
+    : campaign.optimization_goal === 'CONVERSATIONS' ? 'Conversas'
+      : campaign.optimization_goal === 'LANDING_PAGE_VIEWS' ? 'Visitas à página' : 'Resultados';
   return {
     date_start: date, date_stop: date, campaign_id: campaign.id, campaign_name: campaign.name,
     adset_id: `${campaign.id}-set`, adset_name: campaign.adset, ad_id: null, ad_name: null,
-    campaign_objective: campaign.objective, is_lead_campaign: campaign.objective === 'OUTCOME_LEADS',
+    campaign_objective: campaign.objective, optimization_goal: campaign.optimization_goal, is_lead_campaign: campaign.objective === 'OUTCOME_LEADS',
     impressions, reach, spend, clicks, link_clicks: Math.round(clicks * 0.7), leads, results_form: leads,
-    conversations, results_messaging: conversations, profile_visits: Math.round(clicks * 0.11),
-    landing_page_views: Math.round(clicks * 0.46), action_breakdown: {}, ad_account_id: accountId,
+    conversations, results_messaging: conversations, profile_visits: profileVisits,
+    landing_page_views: landingPageViews, results, result_label: resultLabel, action_breakdown: {}, ad_account_id: accountId,
     account_name: accountName, currency,
   };
 }
@@ -63,20 +71,20 @@ function dataset(since: string, until: string, previous = false): AccountDataset
   const accountRows = account;
   const adsetRows = campaignRows;
   const breakdown: BreakdownRow[] = [
-    { key: 'instagram_feed', platform: 'instagram', position: 'Instagram Feed', spend: totals[0].spend * 0.29, impressions: 780000, clicks: 13000, leads: Math.round(totals[0].leads * 0.38), conversations: 30 },
-    { key: 'instagram_stories', platform: 'instagram', position: 'Instagram Stories', spend: totals[0].spend * 0.24, impressions: 610000, clicks: 10500, leads: Math.round(totals[0].leads * 0.27), conversations: 44 },
-    { key: 'facebook_feed', platform: 'facebook', position: 'Facebook Feed', spend: totals[0].spend * 0.2, impressions: 510000, clicks: 7800, leads: Math.round(totals[0].leads * 0.19), conversations: 18 },
-    { key: 'instagram_reels', platform: 'instagram', position: 'Instagram Reels', spend: totals[0].spend * 0.15, impressions: 390000, clicks: 6400, leads: Math.round(totals[0].leads * 0.12), conversations: 25 },
-    { key: 'facebook_reels', platform: 'facebook', position: 'Facebook Reels', spend: totals[0].spend * 0.12, impressions: 280000, clicks: 5100, leads: Math.round(totals[0].leads * 0.08), conversations: 12 },
+    { key: 'instagram_feed', platform: 'instagram', position: 'Instagram Feed', spend: totals[0].spend * 0.29, impressions: 780000, clicks: 13000, leads: Math.round(totals[0].leads * 0.38), conversations: 30, results: Math.round(totals[0].leads * 0.38) + 30 },
+    { key: 'instagram_stories', platform: 'instagram', position: 'Instagram Stories', spend: totals[0].spend * 0.24, impressions: 610000, clicks: 10500, leads: Math.round(totals[0].leads * 0.27), conversations: 44, results: Math.round(totals[0].leads * 0.27) + 44 },
+    { key: 'facebook_feed', platform: 'facebook', position: 'Facebook Feed', spend: totals[0].spend * 0.2, impressions: 510000, clicks: 7800, leads: Math.round(totals[0].leads * 0.19), conversations: 18, results: Math.round(totals[0].leads * 0.19) + 18 },
+    { key: 'instagram_reels', platform: 'instagram', position: 'Instagram Reels', spend: totals[0].spend * 0.15, impressions: 390000, clicks: 6400, leads: Math.round(totals[0].leads * 0.12), conversations: 25, results: Math.round(totals[0].leads * 0.12) + 25 },
+    { key: 'facebook_reels', platform: 'facebook', position: 'Facebook Reels', spend: totals[0].spend * 0.12, impressions: 280000, clicks: 5100, leads: Math.round(totals[0].leads * 0.08), conversations: 12, results: Math.round(totals[0].leads * 0.08) + 12 },
   ];
   const ads: InsightRow[] = Array.from({ length: 8 }, (_, i) => {
     const campaign = campaigns[i % 4];
     const c = campaignRows[i % 4];
     const spend = c.spend * (0.36 - (i % 3) * 0.06);
     const leads = campaign.objective === 'OUTCOME_LEADS' ? Math.round(c.leads * (0.4 - (i % 3) * 0.06)) : 0;
-    return { ...c, ad_id: `ad-${i + 1}`, ad_name: ['Vídeo · Fachada e lazer', 'Carrossel · Plantas', 'Stories · Tour decorado', 'Imagem · Localização', 'Reels · Depoimento', 'Carrossel · Condições', 'Vídeo · Tour 360º', 'Imagem · Últimas unidades'][i], spend, leads, results_form: leads, clicks: Math.round(c.clicks * (0.3 - (i % 4) * 0.025)), impressions: Math.round(c.impressions * (0.31 - (i % 4) * 0.02)), cpl: leads ? spend / leads : null, thumbnail_url: `https://images.unsplash.com/photo-${['1600607687939-ce8a6c25118c','1600566753086-00f18fb6b3ea','1600607687920-4e2a09cf159d','1600585154340-be6161a56a0c','1600607687644-c7171b42498f','1600566753190-17f0baa2a6c3','1600607687939-ce8a6c25118c','1600566753190-17f0baa2a6c3'][i]}?auto=format&fit=crop&w=640&q=85`, image_url: null };
+    return { ...c, ad_id: `ad-${i + 1}`, ad_name: ['Vídeo · Fachada e lazer', 'Carrossel · Plantas', 'Stories · Tour decorado', 'Imagem · Localização', 'Reels · Depoimento', 'Carrossel · Condições', 'Vídeo · Tour 360º', 'Imagem · Últimas unidades'][i], spend, leads, results_form: leads, results: Math.round(c.results * (0.3 - (i % 4) * 0.025)), clicks: Math.round(c.clicks * (0.3 - (i % 4) * 0.025)), impressions: Math.round(c.impressions * (0.31 - (i % 4) * 0.02)), cpl: leads ? spend / leads : null, thumbnail_url: `https://images.unsplash.com/photo-${['1600607687939-ce8a6c25118c','1600566753086-00f18fb6b3ea','1600607687920-4e2a09cf159d','1600585154340-be6161a56a0c','1600607687644-c7171b42498f','1600566753190-17f0baa2a6c3','1600607687939-ce8a6c25118c','1600566753190-17f0baa2a6c3'][i]}?auto=format&fit=crop&w=640&q=85`, image_url: null };
   });
-  const previousCampaigns = campaignRows.map(item => ({ ...item, spend: item.spend * 1.1, leads: Math.round(item.leads * 0.92), results_form: Math.round(item.leads * 0.92) }));
+  const previousCampaigns = campaignRows.map(item => ({ ...item, spend: item.spend * 1.1, leads: Math.round(item.leads * 0.92), results_form: Math.round(item.leads * 0.92), results: Math.round(item.results * 0.92) }));
   return { account: { id: accountId, name: accountName, currency }, accountRows, campaigns: adsetRows, daily: allDaily, creatives: ads, breakdown, previousAccountRows: previous ? previousRows || [] : account.map(item => ({ ...item, spend: item.spend * 1.08, leads: Math.round(item.leads * 0.94), results_form: Math.round(item.leads * 0.94) })), previousCampaigns };
 }
 

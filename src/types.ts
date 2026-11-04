@@ -16,6 +16,7 @@ export interface InsightRow {
   ad_id: string | null;
   ad_name: string | null;
   campaign_objective: string | null;
+  optimization_goal: string | null;
   is_lead_campaign: boolean;
   impressions: number;
   reach: number;
@@ -28,6 +29,8 @@ export interface InsightRow {
   results_messaging: number;
   profile_visits: number;
   landing_page_views: number;
+  results: number;
+  result_label: string;
   action_breakdown: Record<string, number>;
   ad_account_id: string;
   account_name: string;
@@ -52,6 +55,7 @@ export interface BreakdownRow {
   clicks: number;
   leads: number;
   conversations: number;
+  results: number;
 }
 
 export interface AccountDataset {
