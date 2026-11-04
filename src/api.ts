@@ -1,7 +1,7 @@
 import { META_ACCESS_TOKEN, META_GRAPH_VERSION } from './config';
 import type { AccountDataset, AdAccount, BreakdownRow, DashboardResponse, InsightRow } from './types';
 
-const DASHBOARD_CACHE_PREFIX = 'meta-dashboard-cache:v1:';
+const DASHBOARD_CACHE_PREFIX = 'meta-dashboard-cache:v2:';
 export const DASHBOARD_CACHE_TTL_MS = 10 * 60_000;
 type DashboardRequest = { accountIds: string[]; since: string; until: string; previousSince: string; previousUntil: string };
 
@@ -102,7 +102,7 @@ function actionTotals(actions: any[] = []) {
   });
   const leadTypes = ['onsite_conversion.lead_grouped', 'leadgen_grouped', 'lead', 'leadgen.other', 'offsite_conversion.fb_pixel_lead', 'offsite_conversion.lead'];
   const conversationTypes = ['onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.messaging_conversation_started', 'messaging_conversation_started_7d', 'messaging_conversation_started'];
-  const profileTypes = ['instagram_profile_visit', 'instagram_profile_visits', 'onsite_conversion.instagram_profile_visit', 'onsite_conversion.instagram_profile_visits'];
+  const profileTypes = ['instagram_profile_visit', 'instagram_profile_visits', 'onsite_conversion.instagram_profile_visit', 'onsite_conversion.instagram_profile_visits', 'profile_visit', 'visit_instagram_profile'];
   return {
     leads: firstValue(leadTypes), conversations: firstValue(conversationTypes), linkClicks: firstValue(['link_click']),
     profileVisits: firstValue(profileTypes), landingPageViews: firstValue(['landing_page_view']),
@@ -124,7 +124,7 @@ function resultFor(actions: ReturnType<typeof actionTotals>, objective: string |
 
   if (goal.includes('LEAD')) return pick(actions.leads, 'Leads');
   if (goal.includes('CONVERSATION') || goal.includes('MESSAGING')) return pick(actions.conversations, 'Conversas');
-  if (goal.includes('PROFILE_VISIT')) return pick(actions.profileVisits, 'Visitas ao perfil');
+  if (goal.includes('PROFILE_VISIT') || goal.includes('VISIT_INSTAGRAM_PROFILE')) return pick(actions.profileVisits, 'Visitas ao perfil');
   if (goal.includes('LANDING_PAGE_VIEW')) return pick(actions.landingPageViews, 'Visitas à página');
   if (goal.includes('LINK_CLICK')) return pick(actions.linkClicks, 'Cliques no link');
   if (goal.includes('ENGAGED_PAGE_VIEW')) return pick(actions.landingPageViews, 'Visitas à página');
@@ -172,6 +172,7 @@ function resultFor(actions: ReturnType<typeof actionTotals>, objective: string |
 function normalizeRow(row: any, account: AdAccount, objectives: Record<string, string | null>): InsightRow {
   const actions = actionTotals(row.actions || []);
   actions.linkClicks ||= numeric(row.inline_link_clicks);
+  actions.profileVisits ||= numeric(row.instagram_profile_visits);
   const objective = objectives[String(row.campaign_id || '')] || null;
   const optimizationGoal = row.optimization_goal || null;
   const result = resultFor(actions, objective, optimizationGoal);
@@ -198,7 +199,7 @@ async function fetchInsights(account: AdAccount, since: string, until: string, l
     ...(level === 'account' ? [] : ['campaign_id', 'campaign_name']),
     ...(level === 'adset' || level === 'ad' ? ['adset_id', 'adset_name'] : []),
     ...(level === 'ad' ? ['ad_id', 'ad_name'] : []),
-    'impressions', 'reach', 'spend', 'clicks', 'inline_link_clicks', 'actions',
+    'impressions', 'reach', 'spend', 'clicks', 'inline_link_clicks', 'instagram_profile_visits', 'actions',
     ...(level === 'account' ? [] : ['optimization_goal']),
   ].join(',');
   return graphPages(`${accountId}/insights`, {
@@ -236,6 +237,7 @@ async function fetchAccountDataset(account: AdAccount, since: string, until: str
   }).sort((a, b) => b.spend - a.spend).slice(0, 50);
   const breakdown: BreakdownRow[] = breakdownRows.map((row: any) => {
     const action = actionTotals(row.actions || []);
+    action.profileVisits ||= numeric(row.instagram_profile_visits);
     const objective = objectives[String(row.campaign_id || '')] || null;
     const position = String(row.platform_position || 'unknown').replace(/^(instagram|facebook|messenger)_/, '');
     return {
