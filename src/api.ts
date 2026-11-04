@@ -113,7 +113,7 @@ async function fetchAccountDataset(account: AdAccount, since: string, until: str
     fetchInsights(account, since, until, 'adset', { breakdowns: 'publisher_platform,platform_position' }),
     fetchInsights(account, previousSince, previousUntil, 'account'),
     fetchInsights(account, previousSince, previousUntil, 'adset'),
-    graphPages(`${accountId}/ads`, { fields: 'id,name,creative{thumbnail_url,image_url}', effective_status: JSON.stringify(['ACTIVE', 'PAUSED', 'ARCHIVED', 'COMPLETED']) }),
+    graphPages(`${accountId}/ads`, { fields: 'id,name,creative{thumbnail_url,image_url}', effective_status: JSON.stringify(['ACTIVE', 'PAUSED', 'ARCHIVED']) }),
   ]);
   const details = new Map(adDetails.map((ad: any) => [String(ad.id), ad]));
   const normalize = (rows: any[]) => rows.map(row => normalizeRow(row, account, objectives));

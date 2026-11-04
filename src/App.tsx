@@ -20,8 +20,8 @@ type Period = '365d' | 'month' | 'last_month' | '30d' | '7d' | 'custom';
 type Totals = { spend: number; impressions: number; reach: number; clicks: number; link_clicks: number; leads: number; conversations: number; profile_visits: number; landing_page_views: number; frequency: number; ctr: number; cpm: number; cpc: number };
 
 const periodOptions: { value: Period; label: string }[] = [
-  { value: '365d', label: 'Últimos 365 dias' }, { value: 'month', label: 'Mês atual' },
-  { value: 'last_month', label: 'Mês passado' }, { value: '30d', label: 'Últimos 30 dias' },
+  { value: '30d', label: 'Últimos 30 dias' }, { value: '365d', label: 'Últimos 365 dias' },
+  { value: 'month', label: 'Mês atual' }, { value: 'last_month', label: 'Mês passado' },
   { value: '7d', label: 'Últimos 7 dias' }, { value: 'custom', label: 'Personalizado' },
 ];
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
@@ -234,9 +234,9 @@ function UnknownTenant({ slug }: { slug: string }) {
 function DashboardPage({ tenant }: { tenant: TenantRoute | null }) {
   const params = new URLSearchParams(window.location.search);
   const rawPreset = params.get('preset') as Period | null;
-  const validPeriod = periodOptions.some(option => option.value === rawPreset) ? rawPreset! : '365d';
+  const validPeriod = periodOptions.some(option => option.value === rawPreset) ? rawPreset! : '30d';
   const [period, setPeriod] = useState<Period>(validPeriod);
-  const [customFrom, setCustomFrom] = useState(params.get('from') || startDateFor('365d', ''));
+  const [customFrom, setCustomFrom] = useState(params.get('from') || startDateFor('30d', ''));
   const [customTo, setCustomTo] = useState(params.get('to') || localDate(new Date()));
   const since = period === 'custom' ? customFrom : startDateFor(period, customFrom);
   const until = period === 'custom' ? customTo : endDateFor(period, customTo);
@@ -409,7 +409,7 @@ function DashboardPage({ tenant }: { tenant: TenantRoute | null }) {
   }
   function selectPeriod(value: Period) {
     setPeriod(value);
-    if (value === 'custom') { setCustomFrom(startDateFor('365d', '')); setCustomTo(localDate(new Date())); }
+    if (value === 'custom') { setCustomFrom(startDateFor('30d', '')); setCustomTo(localDate(new Date())); }
     setCampaignFilter('all'); setAdsetFilter('all');
   }
   function sortBy(key: typeof campaignSort.key) {
