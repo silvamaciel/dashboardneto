@@ -32,6 +32,14 @@ Use apenas em um app pessoal/controlado, com token de leitura e acesso limitado 
 - Frequência = impressões ÷ alcance; CTR = cliques ÷ impressões; CPM = gasto ÷ impressões × 1.000; CPC = gasto ÷ cliques.
 - O app não consulta CRM, vendas ou leads confirmados fora do Meta Ads.
 
+## Páginas por empresa
+
+A tela `/admbossnetofelk` configura uma URL para cada empresa e associa essa página a um ID de conta Meta. A rota já configurada é `/atacadao`, para **Atacadão dos Eletros**, usando o ID `385159223168893`.
+
+Ao abrir `/`, a pessoa informa a senha `netoboss` e recebe a lista de dashboards. As páginas de empresa podem ser abertas por link direto sem senha. A tela admin `/admbossnetofelk` pede a senha. Como a senha e o token estão em um app frontend, a senha do portal é apenas uma barreira visual e pode ser inspecionada no código publicado.
+
+O botão de salvar no admin guarda a configuração apenas no navegador atual. Para publicar as rotas para todas as pessoas, exporte `tenant-config.json`, substitua `public/tenant-config.json` por esse arquivo e publique o projeto novamente.
+
 ## Publicar
 
-O build gera arquivos estáticos em `dist/`, que podem ser servidos pelo GitHub Pages ou outro host estático. Para consultar dados reais após publicar, a variável `VITE_META_ACCESS_TOKEN` precisa estar disponível durante o build. Como ela será incorporada ao frontend, qualquer pessoa com acesso ao app publicado poderá inspecioná-la.
+O build gera arquivos estáticos em `dist/`, que podem ser servidos pelo GitHub Pages ou outro host estático. O `vercel.json` reescreve URLs de páginas, como `/atacadao`, para o app SPA. Para consultar dados reais após publicar, a variável `VITE_META_ACCESS_TOKEN` precisa estar disponível durante o build. Como ela será incorporada ao frontend, qualquer pessoa com acesso ao app publicado poderá inspecioná-la.

@@ -5,3 +5,99 @@
 @media(max-width:1300px){.page-wrap{padding-left:24px;padding-right:24px}.topbar{padding:0 24px}.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.creative-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.filter-bar{flex-wrap:wrap}.filter-spacer{display:none}.summary-card{grid-template-columns:1.35fr .9fr}}
 @media(max-width:900px){.sidebar{width:64px;padding:18px 8px}.brand{padding:2px 6px 25px}.brand>div:last-child,.workspace,.nav-label,.nav-item span:not(.nav-active-dot),.sidebar-bottom{display:none}.brand-mark{width:35px;height:35px}.side-nav{margin-top:5px}.nav-item{justify-content:center;padding:0}.nav-item>svg{width:18px;height:18px}.nav-active-dot{right:6px;top:6px}.main-content{margin-left:64px}.chart-row,.campaign-week-row{grid-template-columns:minmax(0,1fr)}.metrics-panel{min-height:unset}.metric-grid{grid-template-columns:repeat(5,minmax(0,1fr))}.summary-card{grid-template-columns:1fr}.summary-insights{border-left:0;border-top:1px solid #e8edf4;padding:12px 0 0}.creative-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:600px){.topbar{height:52px;padding:0 14px}.breadcrumbs{font-size:10px}.top-actions{gap:7px}.connection-pill{padding:5px 7px;font-size:8px}.page-wrap{padding:20px 12px}.page-heading{align-items:flex-start;flex-direction:column;margin-bottom:14px}.page-heading h1{font-size:22px}.heading-right{width:100%;justify-content:space-between}.updated{font-size:8px}.button{height:32px;padding:0 9px;font-size:9px}.demo-banner{align-items:flex-start;padding:10px}.demo-banner button{font-size:9px;max-width:100px}.filter-bar{gap:6px;padding:8px}.control-label{width:100%;padding-bottom:2px}.filter-divider{display:none}.select-control{height:31px;max-width:calc(50% - 4px);flex:1}.select-control select{min-width:0;max-width:100px}.account-select{min-width:0}.account-select span{max-width:75px}.auto-refresh{margin-left:auto}.date-range{width:100%;justify-content:center}.date-range input{flex:1}.summary-card{padding:14px 13px;gap:14px}.summary-stats{gap:10px;justify-content:space-between}.summary-stats>div{min-width:0}.summary-stats strong{font-size:15px}.summary-stats small{font-size:7px}.summary-stats em{font-size:8px}.summary-insights{gap:8px}.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.kpi-card{padding:10px 9px}.kpi-title{font-size:8px}.kpi-title svg{display:none}.kpi-value{font-size:17px;margin:10px 0}.kpi-bottom>span{font-size:7px}.spark{width:42px}.daily-panel,.metrics-panel,.campaign-panel,.weekday-panel,.distribution-panel,.creatives-panel{padding:12px 10px}.chart-area{height:190px}.legend{justify-content:flex-start;gap:8px;font-size:7px}.legend span{gap:4px}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.distribution-head,.creatives-heading{align-items:flex-start;flex-direction:column}.distribution-grid{grid-template-columns:1fr;gap:9px}.sort-pills{width:100%}.creative-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.creative-image{aspect-ratio:1.2/1}.page-footer{gap:9px;line-height:1.4}.settings-modal{padding:19px}.account-popover{width:min(270px,calc(100vw - 100px))}}
+
+/* Company route setup and tenant pages */
+.main-content{margin-left:0}
+.tenant-account-chip{height:32px;display:flex;align-items:center;gap:7px;border:1px solid #e7ebf1;background:#fff;border-radius:6px;padding:0 10px;color:#59677b;font-size:10px}
+.tenant-account-chip svg{color:#8996a8}
+.admin-shell{min-height:100vh;background:#f5f7fb;color:#20293a}
+.admin-topbar{height:62px;padding:0 max(24px,calc((100vw - 1160px)/2));display:flex;align-items:center;justify-content:space-between;background:#fff;border-bottom:1px solid #e8ecf2}
+.admin-brand{display:flex;align-items:center;gap:9px;color:#293448;text-decoration:none;font:800 13px Manrope,sans-serif;letter-spacing:.07em}
+.admin-brand>span{width:30px;height:30px;display:grid;place-items:center;border-radius:8px;color:#fff;background:#5487f8}
+.admin-brand small{font:700 8px 'DM Sans',sans-serif;letter-spacing:.12em;color:#929cad;margin-left:3px}
+.admin-content{max-width:980px;margin:0 auto;padding:42px 24px 60px}
+.admin-content>h1{font:800 28px Manrope,sans-serif;letter-spacing:-.035em;margin:9px 0 6px;color:#253147}
+.admin-intro{margin:0 0 22px;color:#7f8a9d;font-size:12px}
+.admin-notice{display:flex;gap:11px;padding:14px 15px;background:#eef4ff;border:1px solid #dce8ff;border-radius:9px;color:#5373b9;margin-bottom:16px}
+.admin-notice>svg{flex:none;margin-top:1px}
+.admin-notice strong{font-size:11px;color:#405f9f}
+.admin-notice p{font-size:10px;line-height:1.6;color:#62769e;margin:5px 0 0}
+.admin-notice code,.tenant-info code{background:#fff;border:1px solid #e2e9f4;border-radius:4px;padding:1px 4px;color:#506b9e}
+.admin-card{padding:19px;background:#fff;border:1px solid #e7ebf2;border-radius:10px;box-shadow:0 2px 7px #20304a05;margin-bottom:14px}
+.admin-card-title{display:flex;align-items:center;gap:10px;margin-bottom:17px}
+.admin-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;background:#edf3ff;color:#527de2;flex:none}
+.admin-card-title h2{font:700 13px Manrope,sans-serif;color:#354156;margin:0}
+.admin-card-title p{font-size:10px;color:#929cad;margin:4px 0 0}
+.tenant-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.tenant-form label,.default-route{display:grid;gap:6px;font-size:10px;font-weight:600;color:#657186}
+.tenant-form input,.tenant-form select,.default-route select{width:100%;height:37px;padding:0 10px;border:1px solid #e2e7ef;border-radius:6px;background:#fff;color:#48556a;font-size:11px;outline:none}
+.tenant-form input:focus,.tenant-form select:focus,.default-route select:focus{border-color:#8ba9f2;box-shadow:0 0 0 3px #5487f81c}
+.tenant-form label small{font-size:9px;font-weight:400;color:#929cad}
+.tenant-form-actions{display:flex;align-items:flex-end}
+.admin-account-status{display:flex;align-items:center;gap:6px;margin-top:12px;color:#8792a4;font-size:9px}
+.admin-inline-error{color:#a84b39;margin-left:5px}
+.default-route{max-width:380px;margin-bottom:14px}
+.tenant-list{border:1px solid #edf0f4;border-radius:8px;overflow:hidden}
+.tenant-row{min-height:67px;padding:10px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #edf0f4}
+.tenant-row:last-child{border-bottom:0}
+.tenant-avatar{width:34px;height:34px;display:grid;place-items:center;border-radius:8px;background:#f2f5fb;color:#7187bd;flex:none}
+.tenant-info{display:grid;gap:3px;min-width:0;flex:1}
+.tenant-info strong{font-size:11px;color:#455268}
+.tenant-info a{width:max-content;color:#527bd8;font-size:10px;text-decoration:none}
+.tenant-info small{font-size:9px;color:#9aa4b2}
+.tenant-row-actions{display:flex;align-items:center;gap:10px}
+.text-button{border:0;background:transparent;color:#557bd2;font-size:9px;font-weight:600;padding:5px}
+.danger-text{color:#bb6257}
+.default-badge{padding:5px 8px;border-radius:20px;background:#eaf8f2;color:#168363;font-size:9px;font-weight:600}
+.tenant-empty{padding:22px;text-align:center;color:#929cad;font-size:10px}
+.admin-publish{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px 16px;background:#fff;border:1px solid #e7ebf2;border-radius:9px}
+.admin-publish>div{display:grid;gap:4px}
+.admin-publish strong{font-size:11px;color:#46536a}
+.admin-publish span{font-size:9px;color:#929cad}
+.admin-status{margin-top:10px;color:#69778c;font-size:10px}
+.route-loading{min-height:100vh;display:grid;place-items:center;color:#748096;font-size:12px}
+.unknown-route{min-height:100vh;display:grid;place-items:center;padding:20px}
+.unknown-card{width:min(100%,440px);background:#fff;border:1px solid #e7ebf2;border-radius:12px;padding:28px;box-shadow:0 14px 48px #20304a12;text-align:center}
+.unknown-card .admin-icon{margin:0 auto 12px;background:#fff6e8;color:#c38b27}
+.unknown-card h1{font:800 20px Manrope,sans-serif;color:#303b4f;margin:0 0 8px}
+.unknown-card p{font-size:11px;color:#7f8a9d;line-height:1.6;margin:0 0 18px}
+.unknown-card code{background:#f4f6f9;border-radius:4px;padding:2px 5px}
+.unknown-home{display:block;margin-top:12px;color:#6b7b98;font-size:10px;text-decoration:none}
+@media(max-width:900px){.main-content{margin-left:0}}
+@media(max-width:600px){.admin-content{padding:28px 13px 40px}.admin-topbar{padding:0 14px}.admin-content>h1{font-size:23px}.tenant-form{grid-template-columns:1fr}.tenant-row{align-items:flex-start}.tenant-row-actions{align-items:flex-end;flex-direction:column;gap:4px}.admin-publish{align-items:flex-start;flex-direction:column}.admin-publish .button{width:100%}}
+
+/* Frontend access gate and dashboard directory */
+.password-screen{min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(ellipse at 50% 0%,#eaf0ff 0%,#f5f7fb 55%)}
+.password-card{width:min(100%,390px);padding:30px;background:#fff;border:1px solid #e7ebf2;border-radius:14px;box-shadow:0 18px 65px #20304a14}
+.password-logo{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:linear-gradient(145deg,#6094ff,#426cde);color:white;margin-bottom:18px}
+.password-card .eyebrow{font-size:9px}
+.password-card h1{font:800 23px Manrope,sans-serif;letter-spacing:-.035em;color:#293448;margin:9px 0 6px}
+.password-card p{font-size:11px;line-height:1.55;color:#8590a2;margin:0 0 18px}
+.password-card label{display:block;font-size:10px;font-weight:600;color:#606d82;margin-bottom:6px}
+.password-card input{width:100%;height:40px;border:1px solid #e1e6ee;border-radius:7px;padding:0 11px;color:#435067;font-size:12px;outline:0;margin-bottom:12px}
+.password-card input:focus{border-color:#8ba9f2;box-shadow:0 0 0 3px #5487f81c}
+.password-card .button{width:100%;height:39px}
+.password-error{display:block;color:#b65043;font-size:10px;margin:-4px 0 10px}
+.directory-shell{min-height:100vh;background:#f5f7fb}
+.directory-topbar{height:62px;padding:0 max(24px,calc((100vw - 1120px)/2));display:flex;align-items:center;justify-content:space-between;background:#fff;border-bottom:1px solid #e8ecf2}
+.directory-topbar>div{display:flex;align-items:center;gap:8px}
+.directory-topbar .button{gap:6px}
+.directory-content{max-width:1080px;margin:0 auto;padding:45px 24px 60px}
+.directory-content h1{font:800 29px Manrope,sans-serif;letter-spacing:-.04em;color:#263247;margin:9px 0 6px}
+.dashboard-directory-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:23px}
+.dashboard-link-card{min-height:116px;display:flex;align-items:flex-start;gap:11px;padding:15px;background:#fff;border:1px solid #e7ebf2;border-radius:10px;box-shadow:0 2px 7px #20304a05;text-decoration:none;transition:transform .15s,border-color .15s,box-shadow .15s}
+.dashboard-link-card:hover{transform:translateY(-2px);border-color:#cbd9f8;box-shadow:0 8px 20px #20304a0d}
+.directory-card-icon{width:35px;height:35px;display:grid;place-items:center;flex:none;border-radius:9px;background:#edf3ff;color:#527de2}
+.directory-card-copy{display:grid;gap:5px;min-width:0;flex:1}
+.directory-card-copy strong{font:700 12px Manrope,sans-serif;color:#38465c}
+.directory-card-copy small{font-size:9px;color:#8b96a8;overflow:hidden;text-overflow:ellipsis}
+.directory-card-copy em{font-style:normal;font-size:9px;color:#527bd8}
+.directory-card-arrow{margin-left:auto;color:#9aa6b8;flex:none}
+.directory-empty{margin-top:20px;padding:24px;background:white;border:1px solid #e7ebf2;border-radius:10px;display:grid;justify-items:start;gap:9px}
+.directory-empty strong{font-size:12px;color:#46536a}
+.directory-empty span{font-size:10px;color:#909bad}
+.directory-empty .button{margin-top:4px}
+.breadcrumbs a{color:#65738a;text-decoration:none}
+.breadcrumbs a:hover{color:#4b76dc}
+@media(max-width:800px){.dashboard-directory-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.directory-topbar{padding:0 13px}.directory-topbar .admin-brand small{display:none}.directory-topbar>div{gap:5px}.directory-topbar .button{padding:0 7px;font-size:9px}.directory-content{padding:30px 13px 42px}.directory-content h1{font-size:24px}.dashboard-directory-grid{grid-template-columns:1fr;gap:8px}.dashboard-link-card{min-height:94px}.password-card{padding:24px}}

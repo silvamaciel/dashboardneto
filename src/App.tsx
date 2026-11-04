@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import {
   AlertTriangle, ArrowDownRight, ArrowUpRight, BarChart3, CalendarDays, ChevronDown,
   Clock3, CreditCard, DollarSign, Eye, Filter, Image as ImageIcon, Info, KeyRound,
   LayoutDashboard, Loader2, MessageCircle, MousePointerClick, RefreshCw, Settings,
-  ShieldCheck, Sparkles, Users, X,
+  Sparkles, Users, X,
 } from 'lucide-react';
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, ComposedChart, Line,
@@ -13,6 +13,8 @@ import {
 import { createDemoData } from './mock';
 import { getAdAccounts, hasMetaToken, loadDashboard } from './api';
 import type { AdAccount, BreakdownRow, DashboardResponse, InsightRow } from './types';
+import { exportTenantConfig, loadTenantConfig, normalizeSlug, saveTenantConfigLocally } from './tenants';
+import type { TenantConfig, TenantRoute } from './tenants';
 
 type Period = '365d' | 'month' | 'last_month' | '30d' | '7d' | 'custom';
 type Totals = { spend: number; impressions: number; reach: number; clicks: number; link_clicks: number; leads: number; conversations: number; profile_visits: number; landing_page_views: number; frequency: number; ctr: number; cpm: number; cpc: number };
@@ -26,6 +28,8 @@ const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL
 const integer = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
 const compact = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 });
 const pct = (value: number) => `${value.toFixed(2).replace('.', ',')}%`;
+const ACCESS_PASSWORD = 'netoboss';
+const ACCESS_SESSION_KEY = 'metrix-dashboard-access';
 
 function localDate(date: Date) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
@@ -84,6 +88,150 @@ function objectiveLabel(objective: string | null, lead: boolean) {
 }
 
 function App() {
+  const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(ACCESS_SESSION_KEY) === 'true');
+
+  useEffect(() => {
+    void loadTenantConfig().then(setTenantConfig);
+  }, []);
+
+  const pathname = window.location.pathname.replace(/\/+$/, '') || '/';
+  if (!unlocked && (pathname === '/' || pathname === '/admbossnetofelk')) {
+    return <PasswordGate onUnlock={() => { sessionStorage.setItem(ACCESS_SESSION_KEY, 'true'); setUnlocked(true); }} />;
+  }
+  if (!tenantConfig) return <div className="route-loading">Carregando dashboard…</div>;
+
+  if (pathname === '/admbossnetofelk') {
+    return <TenantAdmin config={tenantConfig} onChange={setTenantConfig} />;
+  }
+
+  if (pathname === '/') return <DashboardDirectory routes={tenantConfig.routes} onLogout={() => { sessionStorage.removeItem(ACCESS_SESSION_KEY); setUnlocked(false); }} />;
+
+  const requestedSlug = pathname.slice(1).toLowerCase();
+  const tenant = requestedSlug ? tenantConfig.routes.find(route => route.slug === requestedSlug) : undefined;
+  if (requestedSlug && !tenant) return <UnknownTenant slug={requestedSlug} />;
+  return <DashboardPage tenant={tenant || null} />;
+}
+
+function PasswordGate({ onUnlock }: { onUnlock: () => void }) {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (password === ACCESS_PASSWORD) { setError(''); onUnlock(); }
+    else setError('Senha incorreta. Confira e tente novamente.');
+  }
+
+  return <main className="password-screen"><form className="password-card" onSubmit={submit}>
+    <div className="password-logo"><BarChart3 size={20} /></div>
+    <div className="eyebrow">METRIX · META ADS</div>
+    <h1>Acesso aos dashboards</h1>
+    <p>Digite a senha para acessar o portal de dashboards.</p>
+    <label htmlFor="dashboard-password">Senha</label>
+    <input id="dashboard-password" type="password" autoComplete="current-password" autoFocus value={password} onChange={event => setPassword(event.target.value)} placeholder="Digite a senha" />
+    {error && <span className="password-error">{error}</span>}
+    <button className="button button-primary" type="submit"><KeyRound size={15} />Entrar</button>
+  </form></main>;
+}
+
+function DashboardDirectory({ routes, onLogout }: { routes: TenantRoute[]; onLogout: () => void }) {
+  return <main className="directory-shell">
+    <header className="directory-topbar"><a href="/" className="admin-brand"><span><BarChart3 size={18} /></span>METRIX <small>META ADS</small></a><div><a href="/admbossnetofelk" className="button button-secondary"><Settings size={14} />Configurar páginas</a><button className="button button-secondary" onClick={onLogout}>Sair</button></div></header>
+    <section className="directory-content"><div className="eyebrow"><span className="eyebrow-icon"><LayoutDashboard size={13} /></span>PORTAL DE DASHBOARDS</div><h1>Escolha uma empresa</h1><p className="admin-intro">Selecione um dashboard para abrir os dados de Meta Ads da empresa.</p>
+      {routes.length ? <div className="dashboard-directory-grid">{routes.map(route => <a className="dashboard-link-card" href={`/${route.slug}`} key={route.slug}><span className="directory-card-icon"><BarChart3 size={19} /></span><span className="directory-card-copy"><strong>{route.companyName}</strong><small>Meta Ads · conta {route.accountId}</small><em>/{route.slug}</em></span><ArrowUpRight size={17} className="directory-card-arrow" /></a>)}</div> : <div className="directory-empty"><strong>Nenhum dashboard disponível ainda</strong><span>Cadastre uma empresa em Configurar páginas para ela aparecer aqui.</span><a href="/admbossnetofelk" className="button button-primary">Configurar primeira página</a></div>}
+    </section>
+  </main>;
+}
+
+function TenantAdmin({ config, onChange }: { config: TenantConfig; onChange: (config: TenantConfig) => void }) {
+  const [accounts, setAccounts] = useState<AdAccount[]>([]);
+  const [accountError, setAccountError] = useState('');
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [companyName, setCompanyName] = useState('');
+  const [slugInput, setSlugInput] = useState('');
+  const [accountId, setAccountId] = useState('');
+  const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    if (!hasMetaToken()) return;
+    setLoadingAccounts(true);
+    void getAdAccounts()
+      .then(setAccounts)
+      .catch(error => setAccountError(error instanceof Error ? error.message : 'Não foi possível carregar contas Meta.'))
+      .finally(() => setLoadingAccounts(false));
+  }, []);
+
+  function commit(next: TenantConfig, message: string) {
+    saveTenantConfigLocally(next);
+    onChange(next);
+    setNotice(message);
+  }
+
+  function addRoute(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const slug = normalizeSlug(slugInput);
+    if (!companyName.trim() || !slug || !accountId.trim()) {
+      setNotice('Preencha o nome da empresa, o endereço e o ID da conta Meta.');
+      return;
+    }
+    if (slug === 'admbossnetofelk') {
+      setNotice('Esse endereço é reservado para a tela de administração.');
+      return;
+    }
+    const route = { slug, companyName: companyName.trim(), accountId: accountId.trim() };
+    const next: TenantConfig = {
+      ...config,
+      routes: [...config.routes.filter(item => item.slug !== slug), route].sort((a, b) => a.slug.localeCompare(b.slug)),
+    };
+    commit(next, `Página /${slug} salva neste navegador.`);
+    setCompanyName(''); setSlugInput(''); setAccountId('');
+  }
+
+  function removeRoute(slug: string) {
+    const next = { ...config, routes: config.routes.filter(route => route.slug !== slug) };
+    commit(next, `A página /${slug} foi removida neste navegador.`);
+  }
+
+  return <main className="admin-shell">
+    <header className="admin-topbar"><a href="/" className="admin-brand"><span><BarChart3 size={18} /></span>METRIX <small>CONFIGURAÇÃO</small></a><a className="button button-secondary" href="/">Abrir dashboard</a></header>
+    <div className="admin-content">
+      <div className="eyebrow"><span className="eyebrow-icon"><Settings size={13} /></span>ADMINISTRAÇÃO DE PÁGINAS</div>
+      <h1>Configure um dashboard por empresa</h1>
+      <p className="admin-intro">Cada endereço exibe o mesmo dashboard filtrado para uma conta de anúncios específica.</p>
+
+      <div className="admin-notice"><Info size={17} /><div><strong>Como publicar as configurações no Vercel</strong><p>Salvar aqui guarda o mapeamento apenas neste navegador. Para disponibilizar as URLs para todos, clique em “Exportar configuração”, substitua <code>public/tenant-config.json</code> pelo arquivo baixado e publique o projeto novamente. A senha é um bloqueio visual do frontend; não protege o código nem o token contra inspeção técnica.</p></div></div>
+
+      <section className="admin-card"><div className="admin-card-title"><span className="admin-icon"><Users size={17} /></span><div><h2>Adicionar ou atualizar uma página</h2><p>Exemplo: slug “valore” cria a URL /valore.</p></div></div>
+        <form className="tenant-form" onSubmit={addRoute}>
+          <label>Nome da empresa<input value={companyName} onChange={event => setCompanyName(event.target.value)} placeholder="Ex.: Valore" required /></label>
+          <label>Final da URL<input value={slugInput} onChange={event => setSlugInput(event.target.value)} placeholder="Ex.: valore" required /><small>Será publicado como /{normalizeSlug(slugInput) || 'nome-da-empresa'}</small></label>
+          <label>Conta Meta<select value={accountId} onChange={event => setAccountId(event.target.value)}><option value="">Escolha uma conta ou informe abaixo</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.name || account.id} · {account.id}</option>)}</select></label>
+          <label>ID da conta Meta<input value={accountId} onChange={event => setAccountId(event.target.value)} placeholder="act_123456789" required /></label>
+          <div className="tenant-form-actions"><button className="button button-primary" type="submit">Salvar página</button></div>
+        </form>
+        <div className="admin-account-status">{loadingAccounts ? <><Loader2 size={14} className="spin" /> Carregando contas acessíveis pelo token…</> : hasMetaToken() ? <>{accounts.length} conta(s) encontrada(s) pelo token Meta.</> : <>Token Meta não configurado; você ainda pode informar o ID da conta manualmente.</>}{accountError && <span className="admin-inline-error">{accountError}</span>}</div>
+      </section>
+
+      <section className="admin-card"><div className="admin-card-title"><span className="admin-icon"><LayoutDashboard size={17} /></span><div><h2>Páginas configuradas</h2><p>Todos os dashboards aparecem no portal após a senha ser validada.</p></div></div>
+        <div className="tenant-list">{config.routes.length ? config.routes.map(route => <TenantRouteRow key={route.slug} route={route} onRemove={() => removeRoute(route.slug)} />) : <div className="tenant-empty">Nenhuma página configurada. Adicione uma empresa acima.</div>}</div>
+      </section>
+
+      <div className="admin-publish"><div><strong>Pronto para levar ao site?</strong><span>Exporte o JSON e publique o arquivo no repositório GitHub.</span></div><button className="button button-primary" onClick={() => { exportTenantConfig(config); setNotice('Arquivo tenant-config.json exportado. Substitua o arquivo em public/ e publique uma nova versão.'); }}><ArrowDownRight size={15} />Exportar configuração</button></div>
+      {notice && <div className="admin-status">{notice}</div>}
+    </div>
+  </main>;
+}
+
+function TenantRouteRow({ route, onRemove }: { route: TenantRoute; onRemove: () => void }) {
+  return <article className="tenant-row"><div className="tenant-avatar"><BarChart3 size={17} /></div><div className="tenant-info"><strong>{route.companyName}</strong><a href={`/${route.slug}`}>/{route.slug} ↗</a><small>Conta Meta: {route.accountId}</small></div><div className="tenant-row-actions"><button className="text-button danger-text" onClick={onRemove}>Remover</button></div></article>;
+}
+
+function UnknownTenant({ slug }: { slug: string }) {
+  return <main className="unknown-route"><div className="unknown-card"><span className="admin-icon"><AlertTriangle size={19} /></span><h1>Esta página ainda não foi configurada</h1><p>O endereço <code>/{slug}</code> não está associado a uma empresa neste dashboard.</p><a className="button button-primary" href="/admbossnetofelk">Configurar páginas</a><a className="unknown-home" href="/">Ir para a página inicial</a></div></main>;
+}
+
+function DashboardPage({ tenant }: { tenant: TenantRoute | null }) {
   const params = new URLSearchParams(window.location.search);
   const rawPreset = params.get('preset') as Period | null;
   const validPeriod = periodOptions.some(option => option.value === rawPreset) ? rawPreset! : '365d';
@@ -96,7 +244,7 @@ function App() {
 
   const [mode, setMode] = useState<'demo' | 'live'>('demo');
   const [accounts, setAccounts] = useState<AdAccount[]>([]);
-  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>(tenant ? [tenant.accountId] : []);
   const [liveData, setLiveData] = useState<DashboardResponse | null>(null);
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveError, setLiveError] = useState('');
@@ -126,12 +274,18 @@ function App() {
       const result = await getAdAccounts();
       if (!result.length) throw new Error('O token não tem acesso a nenhuma conta de anúncios.');
       setAccounts(result);
-      setSelectedAccounts(result.map(account => account.id));
+      const tenantAccount = tenant ? result.find(account => account.id === tenant.accountId || account.account_id === tenant.accountId || account.id.replace(/^act_/, '') === tenant.accountId) : undefined;
+      if (tenant && !tenantAccount) {
+        setMode('live');
+        setSelectedAccounts([]);
+        throw new Error(`O token Meta não retornou acesso à conta ${tenant.accountId}. Confira o ID e as permissões do token.`);
+      }
+      setSelectedAccounts(tenant ? [tenantAccount!.id] : result.map(account => account.id));
       setMode('live');
     } catch (error) {
       setLiveError(error instanceof Error ? error.message : 'Não foi possível carregar as contas da Meta.');
     }
-  }, []);
+  }, [tenant]);
 
   useEffect(() => { void refreshAccounts(); }, [refreshAccounts]);
 
@@ -248,7 +402,7 @@ function App() {
   const alert = zeroResultDay ? `${zeroResultDay.label} teve investimento, mas não registrou leads ou conversas.` : '';
 
   const demo = mode === 'demo';
-  const connectionLabel = demo ? 'Demonstração' : `${selectedAccounts.length} conta${selectedAccounts.length === 1 ? '' : 's'} selecionada${selectedAccounts.length === 1 ? '' : 's'}`;
+  const connectionLabel = tenant?.companyName || (demo ? 'Demonstração' : `${selectedAccounts.length} conta${selectedAccounts.length === 1 ? '' : 's'} selecionada${selectedAccounts.length === 1 ? '' : 's'}`);
 
   function toggleAccount(id: string) {
     setSelectedAccounts(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
@@ -264,23 +418,10 @@ function App() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand"><div className="brand-mark"><BarChart3 size={20} /></div><div><b>METRIX</b><small>ADS INTELLIGENCE</small></div></div>
-        <div className="workspace"><span className="workspace-dot" /><div><small>WORKSPACE</small><strong>Meu dashboard</strong></div><ChevronDown size={15} /></div>
-        <div className="nav-label">ANÁLISE</div>
-        <nav className="side-nav">
-          <button className="nav-item active"><LayoutDashboard size={17} /><span>Visão geral</span><span className="nav-active-dot" /></button>
-          <button className="nav-item" onClick={() => document.getElementById('campaigns')?.scrollIntoView({ behavior: 'smooth' })}><BarChart3 size={17} /><span>Campanhas</span></button>
-          <button className="nav-item" onClick={() => document.getElementById('creatives')?.scrollIntoView({ behavior: 'smooth' })}><ImageIcon size={17} /><span>Criativos</span></button>
-          <button className="nav-item" onClick={() => setSettingsOpen(true)}><CreditCard size={17} /><span>Contas de anúncios</span></button>
-        </nav>
-        <div className="sidebar-bottom"><div className="sidebar-help"><div className="help-icon"><ShieldCheck size={17} /></div><strong>Seus dados, sob seu controle</strong><p>O token é configurado no front-end e não é enviado a um servidor próprio.</p><button onClick={() => setSettingsOpen(true)}>Configurar token <span>→</span></button></div><div className="sidebar-footer"><span className="avatar">M</span><div><strong>Workspace pessoal</strong><small>Plano individual</small></div><Settings size={16} /></div></div>
-      </aside>
-
       <main className="main-content">
-        <header className="topbar"><div className="breadcrumbs"><span>Dashboard</span><b>/</b><strong>Meta Ads</strong></div><div className="top-actions"><span className={`connection-pill ${demo ? 'demo-pill' : 'live-pill'}`}><i />{connectionLabel}</span><button className="icon-button" title="Configurar token" onClick={() => setSettingsOpen(true)}><Settings size={17} /></button><span className="user-avatar">M</span></div></header>
+        <header className="topbar"><div className="breadcrumbs">{tenant && <><a href="/">Todos os dashboards</a><b>/</b></>}<span>Dashboard</span><b>/</b><strong>Meta Ads</strong></div><div className="top-actions"><span className={`connection-pill ${demo ? 'demo-pill' : 'live-pill'}`}><i />{connectionLabel}</span><button className="icon-button" title="Configurar token" onClick={() => setSettingsOpen(true)}><Settings size={17} /></button><span className="user-avatar">M</span></div></header>
         <div className="page-wrap">
-          <section className="page-heading"><div><div className="eyebrow"><span className="eyebrow-icon"><BarChart3 size={13} /></span>ANÁLISE DE PERFORMANCE</div><h1>Visão geral</h1><p>Acompanhe o desempenho das suas campanhas Meta Ads.</p></div><div className="heading-right"><span className="updated"><Clock3 size={14} /> Atualizado {demo ? 'agora · dados de demonstração' : `às ${lastUpdated.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}</span><button className="button button-primary" onClick={() => demo ? setSettingsOpen(true) : setRefreshCount(value => value + 1)} disabled={liveLoading}><RefreshCw size={15} className={liveLoading ? 'spin' : ''} />{demo ? 'Conectar Meta Ads' : 'Atualizar dados'}</button></div></section>
+          <section className="page-heading"><div><div className="eyebrow"><span className="eyebrow-icon"><BarChart3 size={13} /></span>ANÁLISE DE PERFORMANCE</div><h1>{tenant?.companyName || 'Visão geral'}</h1><p>{tenant ? `Desempenho Meta Ads · conta ${tenant.accountId}` : 'Acompanhe o desempenho das suas campanhas Meta Ads.'}</p></div><div className="heading-right"><span className="updated"><Clock3 size={14} /> Atualizado {demo ? 'agora · dados de demonstração' : `às ${lastUpdated.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}</span><button className="button button-primary" onClick={() => demo ? setSettingsOpen(true) : setRefreshCount(value => value + 1)} disabled={liveLoading}><RefreshCw size={15} className={liveLoading ? 'spin' : ''} />{demo ? 'Conectar Meta Ads' : 'Atualizar dados'}</button></div></section>
 
           {demo && <div className="demo-banner"><div className="demo-banner-icon"><Info size={17} /></div><div><strong>Visualização com dados de demonstração</strong><span>Os números e criativos desta tela são ilustrativos. Configure seu token Meta para carregar dados reais.</span></div><button onClick={() => setSettingsOpen(true)}>Configurar conexão <span>→</span></button></div>}
           {liveError && <div className="error-banner"><AlertTriangle size={17} /><span>{liveError}</span><button onClick={() => setSettingsOpen(true)}>Ver configuração</button></div>}
@@ -291,7 +432,7 @@ function App() {
             <label className="select-control"><CalendarDays size={15} /><select value={period} onChange={event => selectPeriod(event.target.value as Period)}>{periodOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select><ChevronDown size={14} /></label>
             {period === 'custom' && <div className="date-range"><input type="date" value={customFrom} max={customTo} onChange={event => setCustomFrom(event.target.value)} /><span>até</span><input type="date" value={customTo} min={customFrom} max={localDate(new Date())} onChange={event => setCustomTo(event.target.value)} /></div>}
             <div className="filter-divider" />
-            <div className="account-select-wrap"><button className="select-control account-select" onClick={() => setAccountMenu(open => !open)}><CreditCard size={15} /><span>{demo ? 'Conta de demonstração' : `${selectedAccounts.length || 0} contas`}</span><ChevronDown size={14} /></button>{accountMenu && <div className="account-popover"><div className="popover-heading"><strong>Contas de anúncios</strong><button onClick={() => setAccountMenu(false)}><X size={14} /></button></div>{accounts.map(account => <label className="account-option" key={account.id}><input type="checkbox" checked={selectedAccounts.includes(account.id)} onChange={() => toggleAccount(account.id)} /><span><b>{account.name || account.id}</b><small>{account.id} · {account.currency || 'BRL'}</small></span></label>)}{!accounts.length && <div className="empty-account">Nenhuma conta conectada.</div>}<div className="popover-foot"><button onClick={() => setSelectedAccounts(accounts.map(account => account.id))}>Selecionar todas</button><button onClick={() => setSelectedAccounts([])}>Limpar</button></div></div>}</div>
+            {tenant ? <div className="tenant-account-chip"><CreditCard size={15} /><span>{tenant.companyName}</span></div> : <div className="account-select-wrap"><button className="select-control account-select" onClick={() => setAccountMenu(open => !open)}><CreditCard size={15} /><span>{demo ? 'Conta de demonstração' : `${selectedAccounts.length || 0} contas`}</span><ChevronDown size={14} /></button>{accountMenu && <div className="account-popover"><div className="popover-heading"><strong>Contas de anúncios</strong><button onClick={() => setAccountMenu(false)}><X size={14} /></button></div>{accounts.map(account => <label className="account-option" key={account.id}><input type="checkbox" checked={selectedAccounts.includes(account.id)} onChange={() => toggleAccount(account.id)} /><span><b>{account.name || account.id}</b><small>{account.id} · {account.currency || 'BRL'}</small></span></label>)}{!accounts.length && <div className="empty-account">Nenhuma conta conectada.</div>}<div className="popover-foot"><button onClick={() => setSelectedAccounts(accounts.map(account => account.id))}>Selecionar todas</button><button onClick={() => setSelectedAccounts([])}>Limpar</button></div></div>}</div>}
             <label className="select-control"><BarChart3 size={15} /><select value={campaignFilter} onChange={event => { setCampaignFilter(event.target.value); setAdsetFilter('all'); }}><option value="all">Todas as campanhas</option>{campaignNames.map(name => <option key={name} value={name}>{name}</option>)}</select><ChevronDown size={14} /></label>
             <label className="select-control"><Users size={15} /><select value={adsetFilter} onChange={event => setAdsetFilter(event.target.value)}><option value="all">Todos os conjuntos</option>{adsetOptions.map(name => <option key={name} value={name}>{name}</option>)}</select><ChevronDown size={14} /></label>
             {(campaignFilter !== 'all' || adsetFilter !== 'all') && <button className="clear-filters" onClick={() => { setCampaignFilter('all'); setAdsetFilter('all'); }}>Limpar</button>}
