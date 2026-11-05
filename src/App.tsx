@@ -4,7 +4,7 @@ import {
   AlertTriangle, ArrowDownRight, ArrowUpRight, BarChart3, CalendarDays, ChevronDown,
   Clock3, CreditCard, DollarSign, Eye, Filter, Image as ImageIcon, Info, KeyRound,
   LayoutDashboard, Loader2, MessageCircle, MousePointerClick, RefreshCw, Settings,
-  Sparkles, Users, X, ZoomIn,
+  Sparkles, Target, Users, X, ZoomIn,
 } from 'lucide-react';
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, ComposedChart, Line,
@@ -260,6 +260,7 @@ function DashboardPage({ tenant }: { tenant: TenantRoute | null }) {
   const [accountMenu, setAccountMenu] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [previewCreative, setPreviewCreative] = useState<InsightRow | null>(null);
+  const [objectiveFilter, setObjectiveFilter] = useState('all');
   const [campaignFilter, setCampaignFilter] = useState('all');
   const [adsetFilter, setAdsetFilter] = useState('all');
   const [distributionMode, setDistributionMode] = useState<'results' | 'spend'>('results');
@@ -349,12 +350,13 @@ function DashboardPage({ tenant }: { tenant: TenantRoute | null }) {
   const previousAccountRows = selectedDatasets.flatMap(dataset => dataset.previousAccountRows);
   const allCampaignRows = selectedDatasets.flatMap(dataset => dataset.campaigns);
   const allPreviousCampaignRows = selectedDatasets.flatMap(dataset => dataset.previousCampaigns);
-  const campaignNames = Array.from(new Set(allCampaignRows.map(row => row.campaign_name).filter(Boolean) as string[])).sort();
-  const adsetOptions = Array.from(new Set(allCampaignRows.filter(row => campaignFilter === 'all' || row.campaign_name === campaignFilter).map(row => row.adset_name).filter(Boolean) as string[])).sort();
-  const applyHierarchyFilters = (rows: InsightRow[]) => rows.filter(row => (campaignFilter === 'all' || row.campaign_name === campaignFilter) && (adsetFilter === 'all' || row.adset_name === adsetFilter));
+  const objectiveOptions = Array.from(new Set(allCampaignRows.map(row => row.campaign_objective).filter((objective): objective is string => Boolean(objective)))).sort();
+  const campaignNames = Array.from(new Set(allCampaignRows.filter(row => objectiveFilter === 'all' || row.campaign_objective === objectiveFilter).map(row => row.campaign_name).filter(Boolean) as string[])).sort();
+  const adsetOptions = Array.from(new Set(allCampaignRows.filter(row => (objectiveFilter === 'all' || row.campaign_objective === objectiveFilter) && (campaignFilter === 'all' || row.campaign_name === campaignFilter)).map(row => row.adset_name).filter(Boolean) as string[])).sort();
+  const applyHierarchyFilters = (rows: InsightRow[]) => rows.filter(row => (objectiveFilter === 'all' || row.campaign_objective === objectiveFilter) && (campaignFilter === 'all' || row.campaign_name === campaignFilter) && (adsetFilter === 'all' || row.adset_name === adsetFilter));
   const campaignRows = applyHierarchyFilters(allCampaignRows);
   const previousCampaignRows = applyHierarchyFilters(allPreviousCampaignRows);
-  const hasHierarchyFilter = campaignFilter !== 'all' || adsetFilter !== 'all';
+  const hasHierarchyFilter = objectiveFilter !== 'all' || campaignFilter !== 'all' || adsetFilter !== 'all';
   const baseRows = hasHierarchyFilter ? campaignRows : accountRows;
   const previousBaseRows = hasHierarchyFilter ? previousCampaignRows : previousAccountRows;
   const totals = aggregate(baseRows);
@@ -428,12 +430,13 @@ function DashboardPage({ tenant }: { tenant: TenantRoute | null }) {
     return direction === 'asc' ? compared : -compared;
   }), [campaignTable, campaignSort]);
 
+  const objectiveCampaignIds = new Set(allCampaignRows.filter(row => objectiveFilter === 'all' || row.campaign_objective === objectiveFilter).map(row => row.campaign_id).filter(Boolean));
   const breakdownRows = selectedDatasets.flatMap(dataset => dataset.breakdown)
-    .filter(row => (campaignFilter === 'all' || row.campaign_name === campaignFilter) && (adsetFilter === 'all' || row.adset_name === adsetFilter));
+    .filter(row => (objectiveFilter === 'all' || Boolean(row.campaign_id && objectiveCampaignIds.has(row.campaign_id))) && (campaignFilter === 'all' || row.campaign_name === campaignFilter) && (adsetFilter === 'all' || row.adset_name === adsetFilter));
   const platformRows = useMemo(() => groupBreakdown(breakdownRows, true), [breakdownRows]);
   const positionRows = useMemo(() => groupBreakdown(breakdownRows, false), [breakdownRows]);
   const creativeRows = selectedDatasets.flatMap(dataset => dataset.creatives)
-    .filter(row => (campaignFilter === 'all' || row.campaign_name === campaignFilter) && (adsetFilter === 'all' || row.adset_name === adsetFilter));
+    .filter(row => (objectiveFilter === 'all' || row.campaign_objective === objectiveFilter) && (campaignFilter === 'all' || row.campaign_name === campaignFilter) && (adsetFilter === 'all' || row.adset_name === adsetFilter));
   const sortedCreatives = useMemo(() => [...creativeRows].sort((a, b) => {
     if (creativeSort === 'cpl') return (a.cpl ?? Number.POSITIVE_INFINITY) - (b.cpl ?? Number.POSITIVE_INFINITY);
     return Number(b[creativeSort] || 0) - Number(a[creativeSort] || 0);
@@ -457,7 +460,7 @@ function DashboardPage({ tenant }: { tenant: TenantRoute | null }) {
   function selectPeriod(value: Period) {
     setPeriod(value);
     if (value === 'custom') { setCustomFrom(startDateFor('30d', '')); setCustomTo(localDate(new Date())); }
-    setCampaignFilter('all'); setAdsetFilter('all');
+    setObjectiveFilter('all'); setCampaignFilter('all'); setAdsetFilter('all');
   }
   function sortBy(key: typeof campaignSort.key) {
     setCampaignSort(current => ({ key, direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc' }));
@@ -466,26 +469,23 @@ function DashboardPage({ tenant }: { tenant: TenantRoute | null }) {
   return (
     <div className="app-shell">
       <main className="main-content">
-        <header className="topbar"><div className="breadcrumbs">{tenant && <><a href="/">Todos os dashboards</a><b>/</b></>}<span>Dashboard</span><b>/</b><strong>Meta Ads</strong></div><div className="top-actions"><span className={`connection-pill ${demo ? 'demo-pill' : 'live-pill'}`}><i />{connectionLabel}</span><button className="icon-button" title="Configurar token" onClick={() => setSettingsOpen(true)}><Settings size={17} /></button><span className="user-avatar">M</span></div></header>
+        <header className="topbar topbar-filter-layout"><div className="navbar-filters">
+          <div className="control-label"><Filter size={15} /><span>Filtros</span></div>
+          <label className="select-control navbar-period"><CalendarDays size={15} /><select aria-label="Período" value={period} onChange={event => selectPeriod(event.target.value as Period)}>{periodOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select><ChevronDown size={14} /></label>
+          {period === 'custom' && <div className="date-range navbar-date-range"><input aria-label="Data inicial" type="date" value={customFrom} max={customTo} onChange={event => setCustomFrom(event.target.value)} /><span>até</span><input aria-label="Data final" type="date" value={customTo} min={customFrom} max={localDate(new Date())} onChange={event => setCustomTo(event.target.value)} /></div>}
+          {!tenant && <div className="account-select-wrap"><button className="select-control account-select" onClick={() => setAccountMenu(open => !open)}><CreditCard size={15} /><span>{demo ? 'Conta de demonstração' : `${selectedAccounts.length || 0} contas`}</span><ChevronDown size={14} /></button>{accountMenu && <div className="account-popover"><div className="popover-heading"><strong>Contas de anúncios</strong><button onClick={() => setAccountMenu(false)}><X size={14} /></button></div>{accounts.map(account => <label className="account-option" key={account.id}><input type="checkbox" checked={selectedAccounts.includes(account.id)} onChange={() => toggleAccount(account.id)} /><span><b>{account.name || account.id}</b><small>{account.id} · {account.currency || 'BRL'}</small></span></label>)}{!accounts.length && <div className="empty-account">Nenhuma conta conectada.</div>}<div className="popover-foot"><button onClick={() => setSelectedAccounts(accounts.map(account => account.id))}>Selecionar todas</button><button onClick={() => setSelectedAccounts([])}>Limpar</button></div></div>}</div>}
+          <label className="select-control navbar-objective"><Target size={15} /><select aria-label="Objetivo" value={objectiveFilter} onChange={event => { setObjectiveFilter(event.target.value); setCampaignFilter('all'); setAdsetFilter('all'); }}><option value="all">Todos os objetivos</option>{objectiveOptions.map(objective => <option key={objective} value={objective}>{objectiveLabel(objective, ['OUTCOME_LEADS', 'LEAD_GENERATION'].includes(objective.toUpperCase()))}</option>)}</select><ChevronDown size={14} /></label>
+          <label className="select-control navbar-campaign"><BarChart3 size={15} /><select aria-label="Campanha" value={campaignFilter} onChange={event => { setCampaignFilter(event.target.value); setAdsetFilter('all'); }}><option value="all">Todas as campanhas</option>{campaignNames.map(name => <option key={name} value={name}>{name}</option>)}</select><ChevronDown size={14} /></label>
+          <label className="select-control navbar-adset"><Users size={15} /><select aria-label="Conjunto de anúncios" value={adsetFilter} onChange={event => setAdsetFilter(event.target.value)}><option value="all">Todos os conjuntos</option>{adsetOptions.map(name => <option key={name} value={name}>{name}</option>)}</select><ChevronDown size={14} /></label>
+          {(objectiveFilter !== 'all' || campaignFilter !== 'all' || adsetFilter !== 'all') && <button className="clear-filters navbar-clear" onClick={() => { setObjectiveFilter('all'); setCampaignFilter('all'); setAdsetFilter('all'); }}>Limpar</button>}
+          <label className="auto-refresh"><input type="checkbox" checked={autoRefresh} onChange={event => setAutoRefresh(event.target.checked)} /><span className="toggle-ui" /><span>Auto 10 min</span></label>
+        </div><div className="top-actions"><span className={`connection-pill ${demo ? 'demo-pill' : 'live-pill'}`}><i />{connectionLabel}</span><button className="icon-button" title="Configurar token" onClick={() => setSettingsOpen(true)}><Settings size={17} /></button><span className="user-avatar">M</span></div></header>
         <div className="page-wrap">
           <section className="page-heading"><div><div className="eyebrow"><span className="eyebrow-icon"><BarChart3 size={13} /></span>ANÁLISE DE PERFORMANCE</div><h1>{tenant?.companyName || 'Visão geral'}</h1><p>{tenant ? `Desempenho Meta Ads · conta ${tenant.accountId}` : 'Acompanhe o desempenho das suas campanhas Meta Ads.'}</p></div><div className="heading-right"><span className="updated"><Clock3 size={14} /> Atualizado {demo ? 'agora · dados de demonstração' : `às ${lastUpdated.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}${usingCache ? ' · cache do navegador' : ''}`}</span><button className="button button-primary" onClick={() => demo ? setSettingsOpen(true) : forceRefreshDashboard()} disabled={liveLoading}><RefreshCw size={15} className={liveLoading ? 'spin' : ''} />{demo ? 'Conectar Meta Ads' : 'Atualizar dados'}</button></div></section>
 
           {demo && <div className="demo-banner"><div className="demo-banner-icon"><Info size={17} /></div><div><strong>Visualização com dados de demonstração</strong><span>Os números e criativos desta tela são ilustrativos. Configure seu token Meta para carregar dados reais.</span></div><button onClick={() => setSettingsOpen(true)}>Configurar conexão <span>→</span></button></div>}
           {liveError && <div className="error-banner"><AlertTriangle size={17} /><span>{liveError}</span><button onClick={() => setSettingsOpen(true)}>Ver configuração</button></div>}
           {response?.partial && response.errors.map(error => <div className="error-banner" key={error.account}><AlertTriangle size={17} /><span><b>{error.account}:</b> {error.error}</span></div>)}
-
-          <section className="filter-bar">
-            <div className="control-label"><Filter size={15} /><span>Filtros</span></div>
-            <label className="select-control"><CalendarDays size={15} /><select value={period} onChange={event => selectPeriod(event.target.value as Period)}>{periodOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select><ChevronDown size={14} /></label>
-            {period === 'custom' && <div className="date-range"><input type="date" value={customFrom} max={customTo} onChange={event => setCustomFrom(event.target.value)} /><span>até</span><input type="date" value={customTo} min={customFrom} max={localDate(new Date())} onChange={event => setCustomTo(event.target.value)} /></div>}
-            <div className="filter-divider" />
-            {tenant ? <div className="tenant-account-chip"><CreditCard size={15} /><span>{tenant.companyName}</span></div> : <div className="account-select-wrap"><button className="select-control account-select" onClick={() => setAccountMenu(open => !open)}><CreditCard size={15} /><span>{demo ? 'Conta de demonstração' : `${selectedAccounts.length || 0} contas`}</span><ChevronDown size={14} /></button>{accountMenu && <div className="account-popover"><div className="popover-heading"><strong>Contas de anúncios</strong><button onClick={() => setAccountMenu(false)}><X size={14} /></button></div>{accounts.map(account => <label className="account-option" key={account.id}><input type="checkbox" checked={selectedAccounts.includes(account.id)} onChange={() => toggleAccount(account.id)} /><span><b>{account.name || account.id}</b><small>{account.id} · {account.currency || 'BRL'}</small></span></label>)}{!accounts.length && <div className="empty-account">Nenhuma conta conectada.</div>}<div className="popover-foot"><button onClick={() => setSelectedAccounts(accounts.map(account => account.id))}>Selecionar todas</button><button onClick={() => setSelectedAccounts([])}>Limpar</button></div></div>}</div>}
-            <label className="select-control"><BarChart3 size={15} /><select value={campaignFilter} onChange={event => { setCampaignFilter(event.target.value); setAdsetFilter('all'); }}><option value="all">Todas as campanhas</option>{campaignNames.map(name => <option key={name} value={name}>{name}</option>)}</select><ChevronDown size={14} /></label>
-            <label className="select-control"><Users size={15} /><select value={adsetFilter} onChange={event => setAdsetFilter(event.target.value)}><option value="all">Todos os conjuntos</option>{adsetOptions.map(name => <option key={name} value={name}>{name}</option>)}</select><ChevronDown size={14} /></label>
-            {(campaignFilter !== 'all' || adsetFilter !== 'all') && <button className="clear-filters" onClick={() => { setCampaignFilter('all'); setAdsetFilter('all'); }}>Limpar</button>}
-            <div className="filter-spacer" />
-            <label className="auto-refresh"><input type="checkbox" checked={autoRefresh} onChange={event => setAutoRefresh(event.target.checked)} /><span className="toggle-ui" /><span>Auto 10 min</span></label>
-          </section>
 
           {mode === 'live' && selectedAccounts.length === 0 && <div className="empty-selection"><CreditCard size={18} /> Selecione ao menos uma conta de anúncios para ver os dados.</div>}
           {liveLoading && <div className="loading-strip"><Loader2 size={15} className="spin" /> Consultando a Meta Marketing API…</div>}
