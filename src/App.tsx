@@ -4,7 +4,7 @@ import {
   AlertTriangle, ArrowDownRight, ArrowUpRight, BarChart3, CalendarDays, ChevronDown,
   Clock3, CreditCard, DollarSign, Eye, Filter, Image as ImageIcon, Info, KeyRound,
   LayoutDashboard, Loader2, MessageCircle, MousePointerClick, RefreshCw, Settings,
-  Sparkles, Users, X,
+  Sparkles, Users, X, ZoomIn,
 } from 'lucide-react';
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, ComposedChart, Line,
@@ -259,6 +259,7 @@ function DashboardPage({ tenant }: { tenant: TenantRoute | null }) {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [accountMenu, setAccountMenu] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [previewCreative, setPreviewCreative] = useState<InsightRow | null>(null);
   const [campaignFilter, setCampaignFilter] = useState('all');
   const [adsetFilter, setAdsetFilter] = useState('all');
   const [distributionMode, setDistributionMode] = useState<'results' | 'spend'>('results');
@@ -299,6 +300,18 @@ function DashboardPage({ tenant }: { tenant: TenantRoute | null }) {
     const timer = window.setInterval(forceRefreshDashboard, 10 * 60_000);
     return () => window.clearInterval(timer);
   }, [autoRefresh, mode]);
+
+  useEffect(() => {
+    if (!previewCreative) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setPreviewCreative(null); };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [previewCreative]);
 
   useEffect(() => {
     if (mode !== 'live' || selectedAccounts.length === 0 || !since || !until || since > until) return;
@@ -496,11 +509,12 @@ function DashboardPage({ tenant }: { tenant: TenantRoute | null }) {
 
           <section className="panel distribution-panel"><div className="distribution-head"><PanelTitle title="Distribuição" subtitle="Onde o investimento e os resultados acontecem" tooltip="Quebra por plataforma e posicionamento retornada pela Meta." /><div className="segmented"><button className={distributionMode === 'results' ? 'selected' : ''} onClick={() => setDistributionMode('results')}>Resultados</button><button className={distributionMode === 'spend' ? 'selected' : ''} onClick={() => setDistributionMode('spend')}>Gasto</button></div></div><div className="distribution-grid"><RankedBars title="Plataforma + posicionamento" rows={platformRows} mode={distributionMode} /><RankedBars title="Posicionamento" rows={positionRows} mode={distributionMode} /></div></section>
 
-          <section className="panel creatives-panel" id="creatives"><div className="creatives-heading"><PanelTitle title="Performance por criativo" subtitle={`${sortedCreatives.length} anúncios · ordenados por ${creativeSort === 'cpl' ? 'menor CPL' : creativeSort === 'spend' ? 'investimento' : creativeSort === 'results' ? 'resultados' : 'cliques'}`} tooltip="Resultados seguem a ação otimizada pelo conjunto. O CPL destacado considera apenas campanhas de leads." /><div className="sort-pills"><span>Ordenar:</span>{([{ key: 'spend', label: 'Investimento' }, { key: 'results', label: 'Resultados' }, { key: 'cpl', label: 'Menor CPL' }, { key: 'clicks', label: 'Cliques' }] as const).map(item => <button key={item.key} className={creativeSort === item.key ? 'selected' : ''} onClick={() => setCreativeSort(item.key)}>{item.label}</button>)}</div></div><div className="creative-grid">{sortedCreatives.slice(0, 16).map((ad, index) => <CreativeCard key={ad.ad_id || `${ad.campaign_name}-${index}`} row={ad} index={index} allRows={sortedCreatives} />)}</div>{!sortedCreatives.length && <div className="empty-panel">Nenhum criativo encontrado para os filtros selecionados.</div>}</section>
+          <section className="panel creatives-panel" id="creatives"><div className="creatives-heading"><PanelTitle title="Performance por criativo" subtitle={`${sortedCreatives.length} anúncios · ordenados por ${creativeSort === 'cpl' ? 'menor CPL' : creativeSort === 'spend' ? 'investimento' : creativeSort === 'results' ? 'resultados' : 'cliques'}`} tooltip="Resultados seguem a ação otimizada pelo conjunto. O CPL destacado considera apenas campanhas de leads." /><div className="sort-pills"><span>Ordenar:</span>{([{ key: 'spend', label: 'Investimento' }, { key: 'results', label: 'Resultados' }, { key: 'cpl', label: 'Menor CPL' }, { key: 'clicks', label: 'Cliques' }] as const).map(item => <button key={item.key} className={creativeSort === item.key ? 'selected' : ''} onClick={() => setCreativeSort(item.key)}>{item.label}</button>)}</div></div><div className="creative-grid">{sortedCreatives.slice(0, 16).map((ad, index) => <CreativeCard key={ad.ad_id || `${ad.campaign_name}-${index}`} row={ad} index={index} allRows={sortedCreatives} onPreview={setPreviewCreative} />)}</div>{!sortedCreatives.length && <div className="empty-panel">Nenhum criativo encontrado para os filtros selecionados.</div>}</section>
           <footer className="page-footer"><span>Dados fornecidos pela Meta Marketing API</span><span>Indicadores de lead são resultados reportados pela plataforma.</span></footer>
         </div>
       </main>
 
+      {previewCreative && <CreativePreviewModal row={previewCreative} onClose={() => setPreviewCreative(null)} />}
       {settingsOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title"><button className="modal-close" onClick={() => setSettingsOpen(false)} aria-label="Fechar"><X size={18} /></button><div className="modal-icon"><KeyRound size={20} /></div><h2 id="settings-title">Configurar token do Meta</h2><p>O token é lido diretamente pelo front-end. Configure-o localmente para carregar suas contas de anúncios.</p><div className="config-step"><span>1</span><div><strong>Crie o arquivo <code>.env.local</code></strong><small>Na pasta do projeto, copie o exemplo `.env.local.example`.</small></div></div><div className="code-snippet">VITE_META_ACCESS_TOKEN=seu_token_meta_aqui</div><div className="config-step"><span>2</span><div><strong>Reinicie o app</strong><small>Rode <code>npm run dev</code> novamente para a configuração ser carregada.</small></div></div><div className="security-note"><AlertTriangle size={16} /><span>Como o token é usado no navegador, ele pode ser visto por qualquer pessoa que acesse o app publicado. Não publique um token real em repositório público ou site aberto.</span></div><div className="modal-status"><span className={hasMetaToken() ? 'status-dot active' : 'status-dot'} />{hasMetaToken() ? 'Token encontrado no front-end' : 'Token ainda não configurado'}</div><div className="modal-actions"><button className="button button-secondary" onClick={() => setSettingsOpen(false)}>Fechar</button><button className="button button-primary" disabled={!hasMetaToken()} onClick={async () => { await refreshAccounts(); setSettingsOpen(false); }}>Validar e carregar contas</button></div></section></div>}
     </div>
   );
@@ -545,13 +559,18 @@ function RankedBars({ title, rows, mode }: { title: string; rows: ReturnType<typ
   const total = values.reduce((sum, row) => sum + row.value, 0); const max = values[0]?.value || 1;
   return <div className="ranked-card"><h3>{title}</h3>{values.length ? values.map((row, index) => <div className="rank-row" key={row.label}><div className="rank-top"><span className="rank-index">{String(index + 1).padStart(2, '0')}</span><span className="rank-label">{row.label}</span><strong>{mode === 'spend' ? money.format(row.spend) : `${integer.format(row.value)} resultados`}</strong><small>{total ? `${(row.value / total * 100).toFixed(1).replace('.', ',')}%` : ''}</small></div><div className="rank-track"><i style={{ width: `${row.value / max * 100}%`, background: `var(--chart-${index + 1})` }} /></div><div className="rank-sub">{mode === 'spend' ? `${integer.format(row.leads)} leads · ${integer.format(row.conversations)} conversas` : `${money.format(row.spend)} investidos`}</div></div>) : <div className="empty-inline">Sem dados de posicionamento.</div>}</div>;
 }
-function CreativeCard({ row, index, allRows }: { row: InsightRow; index: number; allRows: InsightRow[] }) {
+function CreativeCard({ row, index, allRows, onPreview }: { row: InsightRow; index: number; allRows: InsightRow[]; onPreview: (row: InsightRow) => void }) {
   const eligible = allRows.filter(item => item.is_lead_campaign && (item.leads || 0) >= 3 && item.cpl !== null);
   const bestId = [...eligible].sort((a, b) => (a.cpl ?? Infinity) - (b.cpl ?? Infinity))[0]?.ad_id;
   const isBest = !!row.ad_id && row.ad_id === bestId;
   const totalSpend = allRows.reduce((sum, item) => sum + item.spend, 0);
   const share = totalSpend ? Math.min(100, row.spend / totalSpend * 100) : 0;
-  return <article className={`creative-card ${isBest ? 'top-creative' : ''}`}><div className="creative-image">{row.thumbnail_url ? <img src={row.thumbnail_url} alt={row.ad_name || 'Criativo de anúncio'} loading="lazy" /> : <div className="image-placeholder"><ImageIcon size={24} /></div>}{isBest && <span className="top-badge">★ CPL destaque</span>}<span className="spend-share" style={{ width: `${share}%` }} /></div><div className="creative-body"><strong title={row.ad_name || ''}>{row.ad_name || `Anúncio ${index + 1}`}</strong><small>{row.campaign_name || 'Campanha Meta'}</small><div className="creative-stats"><span>Investido<strong>{money.format(row.spend)}</strong></span><span>Resultados<strong>{integer.format(row.results || 0)} {row.result_label.toLowerCase()}</strong></span><span>Custo/resultado<strong>{row.results ? money.format(row.spend / row.results) : '—'}</strong></span></div><div className="creative-clicks"><MousePointerClick size={12} /> {integer.format(row.clicks)} cliques</div></div></article>;
+  return <article className={`creative-card ${isBest ? 'top-creative' : ''}`}><div className="creative-image"><button type="button" className="creative-zoom-trigger" onClick={() => onPreview(row)} aria-label={`Ampliar criativo ${row.ad_name || ''}`} title="Ampliar criativo">{row.thumbnail_url ? <img src={row.thumbnail_url} alt={row.ad_name || 'Criativo de anúncio'} loading="lazy" /> : <div className="image-placeholder"><ImageIcon size={24} /></div>}<span className="creative-zoom-hint"><ZoomIn size={14} /> Ampliar</span></button>{isBest && <span className="top-badge">★ CPL destaque</span>}<span className="spend-share" style={{ width: `${share}%` }} /></div><div className="creative-body"><strong title={row.ad_name || ''}>{row.ad_name || `Anúncio ${index + 1}`}</strong><small>{row.campaign_name || 'Campanha Meta'}</small><div className="creative-stats"><span>Investido<strong>{money.format(row.spend)}</strong></span><span>Resultados<strong>{integer.format(row.results || 0)} {row.result_label.toLowerCase()}</strong></span><span>Custo/resultado<strong>{row.results ? money.format(row.spend / row.results) : '—'}</strong></span></div><div className="creative-clicks"><MousePointerClick size={12} /> {integer.format(row.clicks)} cliques</div></div></article>;
+}
+
+function CreativePreviewModal({ row, onClose }: { row: InsightRow; onClose: () => void }) {
+  const imageUrl = row.image_url || row.thumbnail_url;
+  return <div className="creative-preview-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section className="creative-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="creative-preview-title"><button type="button" className="creative-preview-close" onClick={onClose} aria-label="Fechar prévia"><X size={19} /></button><div className="creative-preview-media">{imageUrl ? <img src={imageUrl} alt={row.ad_name || 'Prévia ampliada do criativo'} /> : <div className="creative-preview-empty"><ImageIcon size={32} /><span>Imagem não disponível para este anúncio</span></div>}</div><aside className="creative-preview-details"><span className="creative-preview-eyebrow">PRÉVIA DO CRIATIVO</span><h2 id="creative-preview-title">{row.ad_name || 'Anúncio Meta'}</h2><p>{row.campaign_name || 'Campanha Meta'}</p><div className="creative-preview-stats"><div><small>INVESTIDO</small><strong>{money.format(row.spend)}</strong></div><div><small>RESULTADOS</small><strong>{integer.format(row.results || 0)} {row.result_label.toLowerCase()}</strong></div><div><small>CUSTO POR RESULTADO</small><strong>{row.results ? money.format(row.spend / row.results) : '—'}</strong></div><div><small>CLIQUES</small><strong>{integer.format(row.clicks)}</strong></div></div>{imageUrl && <a className="creative-original-link" href={imageUrl} target="_blank" rel="noreferrer">Abrir imagem original <span>↗</span></a>}</aside></section></div>;
 }
 
 export default App;
